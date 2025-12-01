@@ -1,0 +1,174 @@
+/* RESET & BASE STYLES */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  font-family: sans-serif;
+}
+
+/* ANIMATIONS */
+@keyframes slideLoop {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-400vw); /* 4 images × 100vw */
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* MAIN CONTAINER */
+.home {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  padding-top: 80px;
+  
+  align-items: center;
+  animation: fadeIn 0.6s ease;
+  
+}
+
+/* SCROLLING BACKGROUND */
+.sliding-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 800vw; /* 8 images × 100vw */
+  display: flex;
+  animation: slideLoop 40s linear infinite;
+  z-index: 0;
+}
+
+.sliding-bg img {
+  width: 100vw;
+  height: 100%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* DARK OVERLAY */
+.bg-darken {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1;
+}
+
+/* HERO SECTION */
+.hero {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 1rem;
+  color: white;
+}
+
+/* MAIN TITLE */
+.NekoText {
+    padding-bottom: 20px;
+  font-size: 10rem;
+  font-weight: 900;
+  color: #ffffff;
+  text-shadow: 2px 2px 0px #f00404, 4px 4px 0px #c90e0ece, 6px 6px 0px #b61313;
+}
+
+/* HERO TEXT */
+.hero-text h1 {
+  font-size: 2.8rem;
+  margin-bottom: 1rem;
+}
+
+.hero-text p {
+  font-size: 1.1rem;
+  font-weight: 300;
+  margin-bottom: 2rem;
+}
+
+/* BUTTON */
+.hero-button {
+  padding: 0.8rem 1.8rem;
+  background-color: #8b0000;
+  border: none;
+  color: white;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 1rem;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.hero-button:hover {
+  transform: translateY(-2px);
+  opacity: 0.85;
+}
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 768px) {
+  .home {
+    flex-direction: column;
+    padding-top: 100px; /* slightly more for mobile nav overlap */
+    padding-bottom: 2rem;
+    min-height: auto;
+  }
+}
+
+@media (max-width: 992px) {
+  .NekoText {
+    font-size: 6rem;
+  }
+
+  .hero-text h1 {
+    font-size: 2.2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .NekoText {
+    font-size: 4rem;
+    line-height: 1.1;
+    text-shadow: 1px 1px 0px #f00404, 2px 2px 0px #c90e0eaa, 3px 3px 0px #b61313;
+  }
+
+  .hero-text h1 {
+    font-size: 1.7rem;
+  }
+
+  .hero-text p {
+    font-size: 1rem;
+  }
+
+  .hero-button {
+    padding: 0.7rem 1.5rem;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .NekoText {
+    font-size: 3rem;
+  }
+
+  .hero-text h1 {
+    font-size: 1.5rem;
+  }
+}
