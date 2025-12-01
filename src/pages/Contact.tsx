@@ -1,6 +1,14 @@
 import React, { useState } from "react";
 import { supabase } from "../config/supabaseClient";
-import { serviceList } from "../data/services";
+// ...existing code...
+type Service = {
+  id: number;
+  title: string;
+  description: string;
+  price: string;
+  image: string;
+};
+// ...existing code...
 import { 
   MdEmail, 
   MdPhone, 
@@ -24,6 +32,21 @@ const Contact: React.FC = () => {
     service: "",
     message: "",
   });
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
+  React.useEffect(() => {
+    const fetchServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase.from("services").select("*");
+      if (error) {
+        console.error("Error fetching services:", error.message);
+      } else {
+        setServices(data as Service[]);
+      }
+      setLoadingServices(false);
+    };
+    fetchServices();
+  }, []);
 
   const [submitted, setSubmitted] = useState(false);
 
@@ -136,10 +159,11 @@ const Contact: React.FC = () => {
                 value={formData.service}
                 onChange={handleChange}
                 required
+                disabled={loadingServices}
               >
-                <option value="">Select a service</option>
-                {serviceList.map((s) => (
-                  <option key={s.title} value={s.title}>
+                <option value="">{loadingServices ? "Loading services..." : "Select a service"}</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.title}>
                     {s.title} {s.price ? `- ${s.price}` : ""}
                   </option>
                 ))}
