@@ -310,6 +310,7 @@
     text-decoration: none;
     font-weight: 600;
     transition: color 0.3s ease;
+    background-color: #ffffff;
   }
   
   .forgot-password:hover {
@@ -489,3 +490,13 @@
       font-size: 0.85rem;
     }
   }
+
+  .notice-box {
+  background: #fff3cd;
+  padding: 14px;
+  border-left: 6px solid #ffcc00;
+  color: #664d03;
+  margin-bottom: 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
