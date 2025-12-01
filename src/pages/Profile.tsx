@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../config/supabaseClient";
-import "../styles/login.css";
-import "../styles/contact.css";
+import "../styles/profile.css";
 
 const Profile: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -140,86 +139,120 @@ const Profile: React.FC = () => {
   if (!user) return <div className="login-container"><div className="login-form-section"><div className="login-form-container"><p>Please login to view your profile.</p></div></div></div>;
 
   return (
-    <div className="login-container">
-      <div className="login-form-section">
-        <div className="login-form-container">
-          <h2 style={{marginBottom: '1rem'}}>Profile</h2>
-          {/* Avatar upload */}
-          <div className="form-group" style={{textAlign: 'center'}}>
-            <label>Profile Picture</label>
-            <div style={{marginBottom: '0.5rem'}}>
-              <img src={profile?.avatar_url ?? "https://ui-avatars.com/api/?name=" + encodeURIComponent(profile?.username ?? profile?.name ?? "User")} alt="avatar" style={{width: 80, height: 80, borderRadius: '50%', objectFit: 'cover'}} />
-            </div>
-            <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={uploading} />
-            {uploadError && <div className="error-message">{uploadError}</div>}
-          </div>
-          <div className="form-group">
-            <label>Username</label>
-            <div className="input-with-icon">
-              <input name="username" type="text" value={formValues.username} onChange={handleFormChange} disabled={!editing} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Email</label>
-            <div className="input-with-icon">
-              <input name="email" type="email" value={formValues.email} onChange={handleFormChange} disabled={!editing} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Contact Number</label>
-            <div className="input-with-icon">
-              <input name="phone" type="tel" value={formValues.phone} onChange={handleFormChange} disabled={!editing} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Role</label>
-            <div className="input-with-icon">
-              <input type="text" value={profile?.user_type ?? (user.user_metadata?.userType ?? "client")} disabled />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Password</label>
-            <div className="input-with-icon">
-              <input type="password" value="********" disabled />
-            </div>
-            <div style={{ marginTop: 8 }}>
-              <button type="button" className="action-btn" onClick={requestPasswordReset}>Request password reset (ask admin)</button>
-            </div>
-          </div>
-          {/* Save/Cancel controls */}
-          <div className="form-group" style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            {!editing ? (
-              <button type="button" className="action-btn" onClick={handleEditToggle}>Edit profile</button>
-            ) : (
-              <>
-                <button type="button" className="action-btn confirm" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-                <button type="button" className="action-btn reject" onClick={handleCancel} disabled={saving}>Cancel</button>
-              </>
-            )}
-          </div>
-          {saveError && <div className="error-message">{saveError}</div>}
-          {saveSuccess && <div className="success-message">{saveSuccess}</div>}
-          {/* Booking progress */}
-          <div className="form-group">
-            <label>Booking Progress</label>
-            <div style={{marginTop: '0.5rem'}}>
-              {bookings.length === 0 ? (
-                <span>No bookings yet.</span>
-              ) : (
-                <ul style={{listStyle: 'none', padding: 0}}>
-                  {bookings.map((b) => (
-                    <li key={b.id} style={{marginBottom: '0.5rem'}}>
-                      <strong>{b.service}</strong> — {new Date(b.date).toLocaleDateString()}<br />
-                      <span className={`status-badge status-${b.status}`}>{b.status}</span> ₱{b.amount}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
+    <div className="profile-container">
+    <div className="profile-card">
+      <h2>Profile</h2>
+
+      {/* Avatar upload */}
+<div className="avatar-wrapper">
+  <img
+    src={
+      profile?.avatar_url ??
+      "https://ui-avatars.com/api/?name=" +
+        encodeURIComponent(profile?.username ?? profile?.name ?? "User")
+    }
+    alt="avatar"
+  />
+  <label htmlFor="avatar-upload" className="custom-file-upload">
+    Choose File
+  </label>
+  <input
+    id="avatar-upload"
+    type="file"
+    accept="image/*"
+    onChange={handleAvatarUpload}
+    disabled={uploading}
+  />
+  {uploadError && <div className="error-message">{uploadError}</div>}
+</div>
+
+
+      {/* Form fields */}
+      <div className="form-group">
+        <label>Username</label>
+        <input
+          name="username"
+          type="text"
+          value={formValues.username}
+          onChange={handleFormChange}
+          disabled={!editing}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Email</label>
+        <input
+          name="email"
+          type="email"
+          value={formValues.email}
+          onChange={handleFormChange}
+          disabled={!editing}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Contact Number</label>
+        <input
+          name="phone"
+          type="tel"
+          value={formValues.phone}
+          onChange={handleFormChange}
+          disabled={!editing}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>Role</label>
+        <input type="text" value={profile?.user_type ?? (user.user_metadata?.userType ?? "client")} disabled />
+      </div>
+
+      <div className="form-group">
+        <label>Password</label>
+        <input type="password" value="********" disabled />
+        <button type="button" className="action-btn" onClick={requestPasswordReset}>
+          Request password reset
+        </button>
+      </div>
+
+      {/* Save/Cancel controls */}
+      <div className="form-group" style={{ display: "flex", gap: "8px" }}>
+        {!editing ? (
+          <button type="button" className="action-btn confirm" onClick={handleEditToggle}>
+            Edit profile
+          </button>
+        ) : (
+          <>
+            <button type="button" className="action-btn confirm" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save"}
+            </button>
+            <button type="button" className="action-btn reject" onClick={handleCancel} disabled={saving}>
+              Cancel
+            </button>
+          </>
+        )}
+      </div>
+
+      {saveError && <div className="error-message">{saveError}</div>}
+      {saveSuccess && <div className="success-message">{saveSuccess}</div>}
+
+      {/* Booking progress */}
+      <div className="form-group">
+        <label>Booking Progress</label>
+        {bookings.length === 0 ? (
+          <span>No bookings yet.</span>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0 }}>
+            {bookings.map((b) => (
+              <li key={b.id}>
+                <strong>{b.service}</strong> — {new Date(b.date).toLocaleDateString()} <br />
+                <span className={`status-badge status-${b.status}`}>{b.status}</span> ₱{b.amount}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
+  </div>
   );
 };
 
