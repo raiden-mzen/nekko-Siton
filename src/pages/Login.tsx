@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../config/supabaseClient";
 
-
 import {
   MdEmail,
   MdLock,
@@ -14,11 +13,12 @@ import {
 import { FaCamera, FaHeart, FaStar } from "react-icons/fa";
 import "../styles/login.css";
 
-
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [userType, setUserType] = useState<"client" |  "admin">("client");
+  const [userType, setUserType] = useState<"client" | "admin">("client");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [notice, setNotice] = useState(""); // <-- NEW
 
   const [isTyping, setIsTyping] = useState({
     name: false,
@@ -64,48 +64,68 @@ const Login: React.FC = () => {
           password,
         });
         if (error) throw error;
-        alert("Login successful!");
-        // Determine user type and route
+
         const signedUser = data.user;
-        const metaType = (signedUser?.user_metadata as any)?.userType as string | undefined;
+
+        // 🔍 CHECK IF EMAIL IS CONFIRMED
+        if (!signedUser?.confirmed_at) {
+          setNotice("Please confirm your email first. Check your inbox.");
+          await supabase.auth.signOut();
+          return;
+        }
+
+        alert("Login successful!");
+
+        // Determine user type and route
+        const metaType = (signedUser?.user_metadata as any)?.userType as
+          | string
+          | undefined;
         let resolvedType = metaType;
+
         if (!resolvedType && signedUser?.id) {
           try {
-            const { data: profileData, error: profileErr } = await supabase
+            const { data: profileData } = await supabase
               .from("profiles")
               .select("user_type, userType")
               .eq("id", signedUser.id)
               .single();
-            if (!profileErr && profileData) {
-              resolvedType = profileData.user_type ?? profileData.userType;
+
+            if (profileData) {
+              resolvedType =
+                profileData.user_type ?? profileData.userType ?? "client";
             }
-          } catch (err) {
-            console.warn("Could not fetch profile user type:", err);
-          }
+          } catch {}
         }
+
         if (resolvedType === "admin") navigate("/admin");
         else navigate("/");
       } else {
         if (userType === "admin") {
-          // ADMIN REQUEST → stored in admin_requests table
-          const { error: insertError } = await supabase.from("admin_requests").insert([
-            {
-              email,
-              name,
-              phone,
-              status: "pending",
-              requested_at: new Date().toISOString(),
-            },
-          ]);
+          // ADMIN REQUEST
+          const { error: insertError } = await supabase
+            .from("admin_requests")
+            .insert([
+              {
+                email,
+                name,
+                phone,
+                status: "pending",
+                requested_at: new Date().toISOString(),
+              },
+            ]);
           if (insertError) throw insertError;
-          alert("Admin request submitted. An existing admin will review your application.");
+
+          alert(
+            "Admin request submitted. An existing admin will review your application."
+          );
         } else {
-          // REGULAR SIGNUP (client)
+          // CLIENT SIGNUP
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
               data: {
+                emailRedirectTo: "http://localhost:5173/dashboard",
                 name,
                 phone,
                 userType,
@@ -113,7 +133,10 @@ const Login: React.FC = () => {
             },
           });
           if (error) throw error;
-          alert("Account created successfully! Please check your email to confirm.");
+
+          setNotice(
+            "Account created! Please check your email inbox to confirm your account."
+          );
           console.log("User:", data.user);
         }
       }
@@ -122,7 +145,6 @@ const Login: React.FC = () => {
     }
   };
 
-  // Logout handler
   const handleLogout = async () => {
     await supabase.auth.signOut();
     alert("Logged out successfully.");
@@ -135,22 +157,28 @@ const Login: React.FC = () => {
 
   return (
     <div className="login-container">
-      {/* LEFT SIDE BRAND */}
+      {/* LEFT SIDE */}
       <div className="login-brand">
         <div className="brand-content">
           <h1 className="brand-logo">NEKO SITON</h1>
           <p className="brand-tagline">Capturing Moments, Creating Memories</p>
           <div className="brand-features">
             <div className="feature">
-              <span className="feature-icon"><FaCamera /></span>
+              <span className="feature-icon">
+                <FaCamera />
+              </span>
               <span>Professional Photography Services</span>
             </div>
             <div className="feature">
-              <span className="feature-icon"><FaHeart /></span>
+              <span className="feature-icon">
+                <FaHeart />
+              </span>
               <span>Personalized Experience</span>
             </div>
             <div className="feature">
-              <span className="feature-icon"><FaStar /></span>
+              <span className="feature-icon">
+                <FaStar />
+              </span>
               <span>Award-Winning Quality</span>
             </div>
           </div>
@@ -160,17 +188,29 @@ const Login: React.FC = () => {
       {/* RIGHT SIDE */}
       <div className="login-form-section">
         <div className="login-form-container">
+          
+          {/* 🔔 NOTICE MESSAGE */}
+          {notice && (
+            <div className="notice-box">
+              <p>{notice}</p>
+            </div>
+          )}
+
           {/* Toggle */}
           <div className="user-type-toggle">
             <button
-              className={`toggle-btn ${userType === "client" ? "active" : ""}`}
+              className={`toggle-btn ${
+                userType === "client" ? "active" : ""
+              }`}
               onClick={() => setUserType("client")}
             >
               Client
             </button>
-           
+
             <button
-              className={`toggle-btn ${userType === "admin" ? "active" : ""}`}
+              className={`toggle-btn ${
+                userType === "admin" ? "active" : ""
+              }`}
               onClick={() => setUserType("admin")}
             >
               Admin
@@ -193,7 +233,11 @@ const Login: React.FC = () => {
               <div className="form-group">
                 <label htmlFor="name">Full Name</label>
                 <div className="input-with-icon">
-                  <MdPerson className={`input-icon ${formData.name.length > 0 ? "hide" : ""}`} />
+                  <MdPerson
+                    className={`input-icon ${
+                      formData.name.length > 0 ? "hide" : ""
+                    }`}
+                  />
                   <input
                     type="text"
                     name="name"
@@ -208,7 +252,11 @@ const Login: React.FC = () => {
             <div className="form-group">
               <label htmlFor="email">Email Address</label>
               <div className="input-with-icon">
-                <MdEmail className={`input-icon ${formData.email.length > 0 ? "hide" : ""}`} />
+                <MdEmail
+                  className={`input-icon ${
+                    formData.email.length > 0 ? "hide" : ""
+                  }`}
+                />
                 <input
                   type="email"
                   name="email"
@@ -223,7 +271,11 @@ const Login: React.FC = () => {
               <div className="form-group">
                 <label htmlFor="phone">Phone Number</label>
                 <div className="input-with-icon">
-                  <MdPhone className={`input-icon ${formData.phone.length > 0 ? "hide" : ""}`} />
+                  <MdPhone
+                    className={`input-icon ${
+                      formData.phone.length > 0 ? "hide" : ""
+                    }`}
+                  />
                   <input
                     type="tel"
                     name="phone"
@@ -238,7 +290,11 @@ const Login: React.FC = () => {
             <div className="form-group">
               <label htmlFor="password">Password</label>
               <div className="input-with-icon">
-                <MdLock className={`input-icon ${formData.password.length > 0 ? "hide" : ""}`} />
+                <MdLock
+                  className={`input-icon ${
+                    formData.password.length > 0 ? "hide" : ""
+                  }`}
+                />
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password"
@@ -270,21 +326,24 @@ const Login: React.FC = () => {
                 <button
                   type="button"
                   className="forgot-password"
-                  style={{marginLeft: '1rem'}}
+                  style={{ marginLeft: "1rem" }}
                   onClick={async () => {
                     if (!formData.email) {
-                      alert('Please enter your email above first.');
+                      alert("Please enter your email above first.");
                       return;
                     }
-                    // Insert password reset request for admin
-                    await supabase.from('password_reset_requests').insert([
+
+                    await supabase.from("password_reset_requests").insert([
                       {
                         email: formData.email,
                         requested_at: new Date().toISOString(),
-                        status: 'pending',
+                        status: "pending",
                       },
                     ]);
-                    alert('Password reset request sent to admin. You will be contacted soon.');
+
+                    alert(
+                      "Password reset request sent to admin. You will be contacted soon."
+                    );
                   }}
                 >
                   Forgot Password?
@@ -299,14 +358,24 @@ const Login: React.FC = () => {
 
           <div className="form-footer">
             <p>
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-              <button className="toggle-link" onClick={() => setIsLogin(!isLogin)}>
+              {isLogin
+                ? "Don't have an account?"
+                : "Already have an account?"}
+              <button
+                className="toggle-link"
+                onClick={() => setIsLogin(!isLogin)}
+              >
                 {isLogin ? "Sign Up" : "Sign In"}
               </button>
             </p>
-            {/* Show logout if logged in (simple check) */}
-            {window.localStorage.getItem('sb-auth-token') && (
-              <button className="logout-btn" type="button" onClick={handleLogout} style={{marginTop: '1rem'}}>
+
+            {window.localStorage.getItem("sb-auth-token") && (
+              <button
+                className="logout-btn"
+                type="button"
+                onClick={handleLogout}
+                style={{ marginTop: "1rem" }}
+              >
                 Logout
               </button>
             )}
@@ -318,4 +387,3 @@ const Login: React.FC = () => {
 };
 
 export default Login;
-
