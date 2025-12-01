@@ -1,6 +1,14 @@
 import React, { useState } from "react";
 import { supabase } from "../config/supabaseClient";
-import { serviceList } from "../data/services";
+// ...existing code...
+type Service = {
+  id: number;
+  title: string;
+  description: string;
+  price: string;
+  image: string;
+};
+// ...existing code...
 import "../styles/booking.css";
 
 // Define the shape of the form data
@@ -29,9 +37,23 @@ const Booking: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [submitError, setSubmitError] = useState<string | null>(null);
-
+  const [services, setServices] = useState<Service[]>([]);
+  const [loadingServices, setLoadingServices] = useState(true);
   // Define steps for the progress bar
   const totalSteps = 4; // 1: Contact, 2: Details, 3: Payment, 4: Success
+  React.useEffect(() => {
+    const fetchServices = async () => {
+      setLoadingServices(true);
+      const { data, error } = await supabase.from("services").select("*");
+      if (error) {
+        console.error("Error fetching services:", error.message);
+      } else {
+        setServices(data as Service[]);
+      }
+      setLoadingServices(false);
+    };
+    fetchServices();
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -147,14 +169,14 @@ const Booking: React.FC = () => {
       }
 
       try {
-        // determine amount from service selection using serviceList
-        const selected = serviceList.find((s) => s.title === formData.service)
+        // determine amount from service selection using fetched services
+        const selected = services.find((s) => s.title === formData.service);
         const parseNumber = (priceStr: string) => {
-          if (!priceStr) return 0
-          const match = priceStr.replace(/,/g, "").match(/(\d+)/)
-          return match ? Number(match[1]) : 0
-        }
-        const amount = selected ? parseNumber(selected.price) : 0
+          if (!priceStr) return 0;
+          const match = priceStr.replace(/,/g, "").match(/(\d+)/);
+          return match ? Number(match[1]) : 0;
+        };
+        const amount = selected ? parseNumber(selected.price ?? "") : 0;
 
         // optional upload of payment proof to storage bucket 'booking_proofs'
         let proofUrl: string | null = null
@@ -262,7 +284,6 @@ const Booking: React.FC = () => {
           <>
             <h2 className="step-heading">2. Service Details</h2>
             <p className="step-subheading">What are you looking to book?</p>
-
             {/* Service */}
             <div className="form-group">
               <label>Service *</label>
@@ -271,11 +292,12 @@ const Booking: React.FC = () => {
                 value={formData.service}
                 onChange={handleChange}
                 required
+                disabled={loadingServices}
               >
-                <option value="">Select a service</option>
-                {serviceList.map((s) => (
-                  <option key={s.title} value={s.title}>
-                    {s.title} {s.price ? `- ${s.price}` : ''}
+                <option value="">{loadingServices ? "Loading services..." : "Select a service"}</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.title}>
+                    {s.title} {s.price ? `- ${s.price}` : ""}
                   </option>
                 ))}
               </select>
@@ -283,7 +305,6 @@ const Booking: React.FC = () => {
                 <p className="error-message">{errors.service}</p>
               )}
             </div>
-
             {/* Date */}
             <div className="form-group">
               <label>Preferred Date *</label>
@@ -296,7 +317,6 @@ const Booking: React.FC = () => {
               />
               {errors.date && <p className="error-message">{errors.date}</p>}
             </div>
-
             {/* Message */}
             <div className="form-group">
               <label>Additional Notes (optional)</label>
