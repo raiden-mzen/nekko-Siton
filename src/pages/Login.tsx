@@ -1,4 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../config/supabaseClient";
+
+
 import {
   MdEmail,
   MdLock,
@@ -10,10 +14,18 @@ import {
 import { FaCamera, FaHeart, FaStar } from "react-icons/fa";
 import "../styles/login.css";
 
+
 const Login: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [userType, setUserType] = useState<"client" | "admin">("client");
+  const [userType, setUserType] = useState<"client" |  "admin">("client");
   const [showPassword, setShowPassword] = useState(false);
+
+  const [isTyping, setIsTyping] = useState({
+    name: false,
+    email: false,
+    phone: false,
+    password: false,
+  });
 
   const [formData, setFormData] = useState({
     name: "",
@@ -25,37 +37,101 @@ const Login: React.FC = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
+    setFormData({
+      ...formData,
       [name]: type === "checkbox" ? checked : value,
-    }));
+    });
+    setIsTyping({
+      ...isTyping,
+      [name]: value.length > 0,
+    });
   };
 
+  const navigate = useNavigate();
+
+  // ------------------------
+  // SUPABASE AUTH
+  // ------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { name, email, phone, password } = formData;
-
-    const endpoint = isLogin
-      ? "http://localhost/your-folder/login.php"
-      : "http://localhost/your-folder/signup.php";
-
-    const payload = isLogin
-      ? { email, password }
-      : { name, email, phone, password, userType };
+    const { email, password, name, phone } = formData;
 
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const result = await res.json();
-      alert(result.message);
-    } catch (err) {
-      alert("Something went wrong. Please try again.");
+      if (isLogin) {
+        // LOGIN
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        alert("Login successful!");
+        // Determine user type and route
+        const signedUser = data.user;
+        const metaType = (signedUser?.user_metadata as any)?.userType as string | undefined;
+        let resolvedType = metaType;
+        if (!resolvedType && signedUser?.id) {
+          try {
+            const { data: profileData, error: profileErr } = await supabase
+              .from("profiles")
+              .select("user_type, userType")
+              .eq("id", signedUser.id)
+              .single();
+            if (!profileErr && profileData) {
+              resolvedType = profileData.user_type ?? profileData.userType;
+            }
+          } catch (err) {
+            console.warn("Could not fetch profile user type:", err);
+          }
+        }
+        if (resolvedType === "admin") navigate("/admin");
+        else navigate("/");
+      } else {
+        if (userType === "admin") {
+          // ADMIN REQUEST → stored in admin_requests table
+          const { error: insertError } = await supabase.from("admin_requests").insert([
+            {
+              email,
+              name,
+              phone,
+              status: "pending",
+              requested_at: new Date().toISOString(),
+            },
+          ]);
+          if (insertError) throw insertError;
+          alert("Admin request submitted. An existing admin will review your application.");
+        } else {
+          // REGULAR SIGNUP (client)
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                name,
+                phone,
+                userType,
+              },
+            },
+          });
+          if (error) throw error;
+          alert("Account created successfully! Please check your email to confirm.");
+          console.log("User:", data.user);
+        }
+      }
+    } catch (error: any) {
+      alert(error.message);
     }
   };
+
+  // Logout handler
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    alert("Logged out successfully.");
+    navigate("/login");
+  };
+
+  useEffect(() => {
+    supabase.from("profiles").select("*").then(console.log);
+  }, []);
 
   return (
     <div className="login-container">
@@ -92,6 +168,7 @@ const Login: React.FC = () => {
             >
               Client
             </button>
+           
             <button
               className={`toggle-btn ${userType === "admin" ? "active" : ""}`}
               onClick={() => setUserType("admin")}
@@ -103,7 +180,11 @@ const Login: React.FC = () => {
           {/* Header */}
           <div className="form-header">
             <h2>{isLogin ? "Welcome Back" : "Create Account"}</h2>
-            <p>{isLogin ? `Sign in to your ${userType} account` : `Sign up as a ${userType}`}</p>
+            <p>
+              {isLogin
+                ? `Sign in to your ${userType} account`
+                : `Sign up as a ${userType}`}
+            </p>
           </div>
 
           {/* FORM */}
@@ -186,7 +267,28 @@ const Login: React.FC = () => {
                   />
                   <span>Remember me</span>
                 </label>
-                <a href="#" className="forgot-password">Forgot Password?</a>
+                <button
+                  type="button"
+                  className="forgot-password"
+                  style={{marginLeft: '1rem'}}
+                  onClick={async () => {
+                    if (!formData.email) {
+                      alert('Please enter your email above first.');
+                      return;
+                    }
+                    // Insert password reset request for admin
+                    await supabase.from('password_reset_requests').insert([
+                      {
+                        email: formData.email,
+                        requested_at: new Date().toISOString(),
+                        status: 'pending',
+                      },
+                    ]);
+                    alert('Password reset request sent to admin. You will be contacted soon.');
+                  }}
+                >
+                  Forgot Password?
+                </button>
               </div>
             )}
 
@@ -202,6 +304,12 @@ const Login: React.FC = () => {
                 {isLogin ? "Sign Up" : "Sign In"}
               </button>
             </p>
+            {/* Show logout if logged in (simple check) */}
+            {window.localStorage.getItem('sb-auth-token') && (
+              <button className="logout-btn" type="button" onClick={handleLogout} style={{marginTop: '1rem'}}>
+                Logout
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -210,3 +318,4 @@ const Login: React.FC = () => {
 };
 
 export default Login;
+

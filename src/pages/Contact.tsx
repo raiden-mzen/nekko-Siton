@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { supabase } from "../config/supabaseClient";
+import { serviceList } from "../data/services";
 import { 
   MdEmail, 
   MdPhone, 
@@ -34,23 +36,38 @@ const Contact: React.FC = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically send the form data to your backend
-    console.log("Form submitted:", formData);
-    setSubmitted(true);
-    
-    // Reset form after 3 seconds
-    setTimeout(() => {
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        service: "",
-        message: "",
-      });
-      setSubmitted(false);
-    }, 3000);
+    setSubmitError(null);
+    try {
+      // Save to Supabase contact_messages table
+      const { error } = await supabase.from("contact_messages").insert([
+        {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          service: formData.service,
+          message: formData.message,
+          submitted_at: new Date().toISOString(),
+        },
+      ]);
+      if (error) throw error;
+      setSubmitted(true);
+      setTimeout(() => {
+        setFormData({
+          name: "",
+          email: "",
+          phone: "",
+          service: "",
+          message: "",
+        });
+        setSubmitted(false);
+      }, 3000);
+    } catch (err: any) {
+      setSubmitError(err?.message ?? "Failed to submit. Please try again.");
+    }
   };
 
   return (
@@ -121,10 +138,12 @@ const Contact: React.FC = () => {
                 required
               >
                 <option value="">Select a service</option>
-                <option value="wedding">Wedding Photography</option>
-                <option value="portrait">Portrait Photography</option>
-                <option value="event">Event Photography</option>
-                <option value="other">Other</option>
+                {serviceList.map((s) => (
+                  <option key={s.title} value={s.title}>
+                    {s.title} {s.price ? `- ${s.price}` : ""}
+                  </option>
+                ))}
+                <option value="Other">Other</option>
               </select>
             </div>
 
@@ -141,6 +160,7 @@ const Contact: React.FC = () => {
               ></textarea>
             </div>
 
+            {submitError && <div className="error-message">{submitError}</div>}
             <button type="submit" className="submit-btn">
               <IoSend className="btn-icon" />
               Send Message

@@ -8,6 +8,7 @@ import Contact from "./pages/Contact";
 import Booking from "./pages/Booking";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import Profile from "./pages/Profile";
 
 
 function App() {
@@ -22,8 +23,8 @@ function App() {
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/booking" element={<Booking />} />
         <Route path="/login" element={<Login />} />
-         <Route path="/admin" element={<Admin />} /> 
-        
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
 
       <Footer />

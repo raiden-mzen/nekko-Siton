@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { supabase } from "../config/supabaseClient";
+import { serviceList } from "../data/services";
 import "../styles/booking.css";
 
 // Define the shape of the form data
@@ -26,6 +28,7 @@ const Booking: React.FC = () => {
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Define steps for the progress bar
   const totalSteps = 4; // 1: Contact, 2: Details, 3: Payment, 4: Success
@@ -129,6 +132,7 @@ const Booking: React.FC = () => {
     e.preventDefault();
     if (step === totalSteps - 1 && validateStep()) {
       setIsSubmitting(true);
+      setSubmitError(null);
 
       // Create FormData for file upload
       const submitData = new FormData();
@@ -142,16 +146,63 @@ const Booking: React.FC = () => {
         submitData.append("paymentProof", formData.paymentProof);
       }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      try {
+        // determine amount from service selection using serviceList
+        const selected = serviceList.find((s) => s.title === formData.service)
+        const parseNumber = (priceStr: string) => {
+          if (!priceStr) return 0
+          const match = priceStr.replace(/,/g, "").match(/(\d+)/)
+          return match ? Number(match[1]) : 0
+        }
+        const amount = selected ? parseNumber(selected.price) : 0
 
-      console.log("Final Booking data:", formData);
+        // optional upload of payment proof to storage bucket 'booking_proofs'
+        let proofUrl: string | null = null
+        if (formData.paymentProof) {
+          try {
+            const file = formData.paymentProof
+            const filename = `${formData.email || 'anon'}_${Date.now()}_${file.name}`
+            const { data: uploadData, error: uploadErr } = await supabase.storage.from('booking_proofs').upload(filename, file)
+            if (uploadErr) {
+              console.warn('Storage upload failed:', uploadErr)
+            } else {
+              // get public URL (bucket must be configured as public or have appropriate policies)
+              try {
+                const { data: urlData } = supabase.storage.from('booking_proofs').getPublicUrl(uploadData.path)
+                proofUrl = (urlData as any).publicUrl ?? null
+              } catch (uErr) {
+                console.warn('Could not get public url', uErr)
+              }
+            }
+          } catch (err) {
+            console.warn('Payment proof upload error', err)
+          }
+        }
 
-      // In a real application, you'd send to your backend:
-      // await fetch('/api/booking', { method: 'POST', body: submitData });
+        // insert booking into bookings table
+        const insertPayload: any = {
+          client_name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          service: formData.service,
+          date: formData.date,
+          message: formData.message,
+          amount,
+          status: 'pending',
+        }
+        if (proofUrl) insertPayload.payment_proof = proofUrl
 
-      setIsSubmitting(false);
-      setStep(totalSteps); // Move to the success step
+        const { data: insertResult, error: insertErr } = await supabase.from('bookings').insert([insertPayload]).select().single()
+        if (insertErr) throw insertErr
+
+        console.log('Booking saved:', insertResult)
+        setIsSubmitting(false)
+        setStep(totalSteps) // Move to success
+      } catch (err: any) {
+        console.error('Submit booking failed', err)
+        setSubmitError(err?.message ?? String(err))
+        setIsSubmitting(false)
+      }
     }
   };
 
@@ -222,9 +273,11 @@ const Booking: React.FC = () => {
                 required
               >
                 <option value="">Select a service</option>
-                <option value="Wedding Photography">Wedding Photography</option>
-                <option value="Portrait Photography">Portrait Photography</option>
-                <option value="Event Photography">Event Photography</option>
+                {serviceList.map((s) => (
+                  <option key={s.title} value={s.title}>
+                    {s.title} {s.price ? `- ${s.price}` : ''}
+                  </option>
+                ))}
               </select>
               {errors.service && (
                 <p className="error-message">{errors.service}</p>
@@ -267,6 +320,8 @@ const Booking: React.FC = () => {
               <p>GCASH name: hello world</p>
             </p>
             
+
+            {submitError && <p className="error-message">{submitError}</p>}
 
             <div className="review-summary">
               <h3>Booking Summary</h3>

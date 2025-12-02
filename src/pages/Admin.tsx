@@ -1,5 +1,6 @@
 import type React from "react"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { supabase } from "../config/supabaseClient"
 import {
   MdPeople,
   MdAttachMoney,
@@ -31,63 +32,10 @@ const Admin: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"dashboard" | "bookings" | "calendar">("dashboard")
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [bookings, setBookings] = useState<Booking[]>([
-    {
-      id: 1,
-      clientName: "Maria Santos",
-      email: "maria@example.com",
-      phone: "+63 912 345 6789",
-      service: "Wedding Photography",
-      date: "2025-12-15",
-      amount: 25000,
-      status: "confirmed",
-      notes: "Needs drone shots",
-    },
-    {
-      id: 2,
-      clientName: "Juan Dela Cruz",
-      email: "juan@example.com",
-      phone: "+63 923 456 7890",
-      service: "Portrait Photography",
-      date: "2025-12-01",
-      amount: 5000,
-      status: "pending",
-      notes: "Studio session preferred",
-    },
-    {
-      id: 3,
-      clientName: "Ana Lopez",
-      email: "ana@example.com",
-      phone: "+63 934 567 8901",
-      service: "Event Photography",
-      date: "2025-11-28",
-      amount: 15000,
-      status: "completed",
-      notes: "Birthday party coverage",
-    },
-    {
-      id: 4,
-      clientName: "Pedro Garcia",
-      email: "pedro@example.com",
-      phone: "+63 945 678 9012",
-      service: "Wedding Photography",
-      date: "2025-12-20",
-      amount: 30000,
-      status: "confirmed",
-      notes: "Need pre-wedding shoot",
-    },
-    {
-      id: 5,
-      clientName: "Rosa Mendez",
-      email: "rosa@example.com",
-      phone: "+63 956 789 0123",
-      service: "Product Photography",
-      date: "2025-12-10",
-      amount: 8000,
-      status: "completed",
-      notes: "E-commerce shots",
-    },
-  ])
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [adminRequests, setAdminRequests] = useState<any[]>([])
 
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null)
   const [bookingsFilter, setBookingsFilter] = useState<"all" | "pending" | "confirmed" | "completed">("all")
@@ -104,8 +52,89 @@ const Admin: React.FC = () => {
   const confirmedBookings = bookings.filter((b) => b.status === "confirmed").length
 
   const updateBookingStatus = (id: number, newStatus: "pending" | "confirmed" | "completed" | "cancelled") => {
-    setBookings(bookings.map((b) => (b.id === id ? { ...b, status: newStatus } : b)))
+    // Update local state optimistically
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b)))
     setSelectedBooking(null)
+
+    // Update in Supabase
+    ;(async () => {
+      try {
+        const { data, error: updateErr } = await supabase.from("bookings").update({ status: newStatus }).eq("id", id).select().single()
+        if (updateErr) throw updateErr
+        // ensure state stays in sync with DB result
+        setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status: data.status } : b)))
+      } catch (err: any) {
+        console.error("Error updating booking status:", err)
+        alert("Failed to update booking status: " + (err.message ?? err))
+      }
+    })()
+  }
+
+  // Admin requests actions
+  const fetchBookingsAndRequests = async () => {
+    setLoading(true)
+    setFetchError(null)
+    try {
+      const { data: bookingsData, error: bookingsErr } = await supabase.from("bookings").select("*").order("date", { ascending: true })
+      if (bookingsErr) throw bookingsErr
+      // Map to local Booking type if needed
+      if (Array.isArray(bookingsData)) {
+        const mapped = bookingsData.map((b: any) => ({
+          id: b.id,
+          clientName: b.client_name ?? b.clientName ?? b.name ?? "",
+          email: b.email,
+          phone: b.phone,
+          service: b.service,
+          date: b.date,
+          amount: Number(b.amount ?? 0),
+          status: b.status,
+          notes: b.notes,
+          paymentProof: b.payment_proof ?? b.paymentProof,
+        }))
+        setBookings(mapped)
+      }
+
+      const { data: requestsData, error: reqErr } = await supabase.from("admin_requests").select("*").order("requested_at", { ascending: false })
+      if (reqErr) throw reqErr
+      setAdminRequests(Array.isArray(requestsData) ? requestsData : [])
+    } catch (err: any) {
+      console.error(err)
+      setFetchError(err.message ?? "Failed to load data")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchBookingsAndRequests()
+  }, [])
+
+  const handleAdminRequestAction = async (requestId: number, action: "approve" | "reject") => {
+    try {
+      const newStatus = action === "approve" ? "approved" : "rejected"
+      const { data, error: updateErr } = await supabase.from("admin_requests").update({ status: newStatus }).eq("id", requestId).select().single()
+      if (updateErr) throw updateErr
+      // update local copy
+      setAdminRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, status: newStatus } : r)))
+
+      // if approved, try updating profiles table to set user_type = 'admin'
+      if (action === "approve" && data?.email) {
+        try {
+          const { error: profileErr } = await supabase.from("profiles").update({ user_type: "admin" }).eq("email", data.email)
+          if (profileErr) {
+            // it's okay if there's no profile yet; just log
+            console.warn("Could not set profile user_type:", profileErr)
+          }
+        } catch (e) {
+          console.warn(e)
+        }
+      }
+
+      alert(`Request ${newStatus}`)
+    } catch (err: any) {
+      console.error(err)
+      alert("Failed to update request: " + (err.message ?? err))
+    }
   }
 
   // Calendar functions
@@ -350,6 +379,43 @@ const Admin: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            {/* Admin Requests */}
+            {fetchError && (
+              <div className="data-error">
+                <strong>Error:</strong> {fetchError}
+              </div>
+            )}
+            <div className="admin-requests-section">
+              <h2>Admin Requests</h2>
+              {loading ? (
+                <p>Loading requests…</p>
+              ) : adminRequests.length === 0 ? (
+                <p className="muted">No admin requests.</p>
+              ) : (
+                <div className="requests-list">
+                  {adminRequests.slice(0, 5).map((req) => (
+                    <div key={req.id} className="request-card">
+                      <div>
+                        <strong>{req.name}</strong>
+                        <div className="request-email">{req.email}</div>
+                        <div className="request-phone">{req.phone}</div>
+                        <div className="request-meta">{new Date(req.requested_at).toLocaleString()}</div>
+                      </div>
+                      <div className="request-actions">
+                        <span className={`request-status status-${req.status}`}>{req.status}</span>
+                        {req.status === "pending" && (
+                          <>
+                            <button className="action-btn confirm" onClick={() => handleAdminRequestAction(req.id, "approve")}>Approve</button>
+                            <button className="action-btn reject" onClick={() => handleAdminRequestAction(req.id, "reject")}>Reject</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
